@@ -1,3 +1,5 @@
+use cargo_edit::fetch::FetchVersionError;
+
 quick_error! {
     #[derive(Debug)]
     pub enum ListError {
@@ -19,6 +21,11 @@ quick_error! {
         PackageFieldMissing(field: &'static str) {
             description("Field missing in package record")
             display("Field `{}` missing in package record in `Cargo.lock`.", field)
+        }
+        FetchVersionError { err: FetchVersionError, package: String } {
+            description("Failed to obtain the latest version for a package")
+            display("Couldn't obtain the latest version for `{}`.", package)
+            cause(err)
         }
     }
 }

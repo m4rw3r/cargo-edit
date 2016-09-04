@@ -1,12 +1,22 @@
+use std::borrow::Cow;
+
 use pad::{Alignment, PadStr};
 use toml;
 
 use cargo_edit::Manifest;
+use cargo_edit::fetch::get_latest_version;
 use list_error::ListError;
+
+struct Row<'a> {
+    name:     &'a String,
+    version:  String,
+    optional: bool,
+    latest:   Option<String>,
+}
 
 /// List the dependencies for manifest section
 #[allow(deprecated)] // connect -> join
-pub fn list_section(manifest: &Manifest, section: &str) -> Result<String, ListError> {
+pub fn list_section(manifest: &Manifest, section: &str, show_latest: bool) -> Result<String, ListError> {
     let mut output = vec![];
 
     let list = try!(manifest.data
@@ -14,10 +24,9 @@ pub fn list_section(manifest: &Manifest, section: &str) -> Result<String, ListEr
         .and_then(|field| field.as_table())
         .ok_or_else(|| ListError::SectionMissing(String::from(section))));
 
-    let name_max_len = list.keys().map(|k| k.len()).max().unwrap_or(0);
-
-    for (name, val) in list {
-        let version = match *val {
+    let rows = try!(list.iter().map(|(name, val)| Ok(Row {
+        name:    name,
+        version: match *val {
             toml::Value::String(ref version) => version.clone(),
             toml::Value::Table(_) => {
                 try!(val.lookup("version")
@@ -27,25 +36,38 @@ pub fn list_section(manifest: &Manifest, section: &str) -> Result<String, ListEr
                     .ok_or_else(|| ListError::VersionMissing(name.clone(), section.to_owned())))
             }
             _ => String::from(""),
-        };
-
-        let optional = if let toml::Value::Table(_) = *val {
+        },
+        optional: if let toml::Value::Table(_) = *val {
             val.lookup("optional")
                 .and_then(|field| field.as_bool())
                 .unwrap_or(false)
         } else {
             false
-        };
+        },
+        latest: if show_latest {
+            get_latest_version(name).map_err(|e| ListError::FetchVersionError{ err: e, package: name.to_owned() }).ok()
+        } else {
+            None
+        }
+    })).collect::<Result<Vec<_>, _>>());
 
-        output.push(format!("{name} {version}{optional}",
+    let name_max_len    = rows.iter().map(|r| r.name.len()).max().unwrap_or(0);
+    let version_max_len = rows.iter().map(|r| r.version.len()).max().unwrap_or(0);
+    let has_optional    = rows.iter().any(|r| r.optional);
+
+    for row in rows {
+        output.push(format!("{name} {version}{optional} {latest}",
                             name =
-                                name.pad_to_width_with_alignment(name_max_len, Alignment::Left),
-                            version = version,
-                            optional = if optional {
-                                " (optional)"
+                                row.name.pad_to_width_with_alignment(name_max_len, Alignment::Left),
+                            version = row.version.pad_to_width_with_alignment(version_max_len, Alignment::Left),
+                            optional = if row.optional {
+                                " (optional) "
+                            } else if has_optional {
+                                "            "
                             } else {
                                 ""
-                            }));
+                            },
+                            latest = row.latest.map(Cow::Owned).unwrap_or(Cow::Borrowed(""))));
     }
 
     Ok(output.connect("\n"))

@@ -4,7 +4,7 @@ use rustc_serialize::json;
 use rustc_serialize::json::{BuilderError, Json};
 use curl::{ErrCode, http};
 use curl::http::handle::{Method, Request};
-use cargo_edit::Manifest;
+use Manifest;
 use regex::Regex;
 
 const REGISTRY_HOST: &'static str = "https://crates.io";

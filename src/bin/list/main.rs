@@ -31,12 +31,14 @@ static USAGE: &'static str = r"
 Usage:
     cargo list [--dev|--build] [options]
     cargo list --tree
+    cargo list --latest
     cargo list (-h|--help)
     cargo list --version
 
 Options:
     --manifest-path=<path>  Path to the manifest to list dependencies of.
     --tree                  List dependencies recursively as tree.
+    --latest                Attempt to also list the latest version of each dependency.
     -h --help               Show this help page.
     --version               Show version.
 
@@ -52,6 +54,8 @@ struct Args {
     flag_build: bool,
     /// Render tree of dependencies
     flag_tree: bool,
+    /// Retrieve latest version number
+    flag_latest: bool,
     /// `Cargo.toml` path
     flag_manifest_path: Option<String>,
     /// `--version`
@@ -79,7 +83,7 @@ fn handle_list(args: &Args) -> Result<String, Box<Error>> {
             list_tree(&manifest)
         } else {
             let manifest = try!(Manifest::open(&args.flag_manifest_path.as_ref().map(|s| &s[..])));
-            list_section(&manifest, args.get_section()).or_else(|err| match err {
+            list_section(&manifest, args.get_section(), args.flag_latest).or_else(|err| match err {
                 ListError::SectionMissing(..) => Ok("".into()),
                 _ => Err(err),
             })

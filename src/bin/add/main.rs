@@ -22,7 +22,6 @@ use cargo_edit::Manifest;
 
 extern crate regex;
 
-mod fetch;
 mod args;
 use args::Args;
 
